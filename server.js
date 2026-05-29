@@ -25,10 +25,6 @@ app.use(bodyParser.json({ limit: "50mb" }));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static(__dirname));
 
-mongoose.connect(mongoURI)
-  .then(() => console.log("✅ MongoDB Connected"))
-  .catch(err => console.error("❌ MongoDB Error:", err));
-
 const conn = mongoose.connection;
 let gridfsBucket;
 
