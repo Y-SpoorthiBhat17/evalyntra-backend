@@ -16,8 +16,10 @@ const Course = require("./models/Course");
 const { getCombinedClassData } = require("./groupController");
 
 const app = express();
-const mongoURI = "mongodb://127.0.0.1:27017/karnataka_lsm";
-
+const mongoURI = process.env.MONGODB_URI;
+mongoose.connect(mongoURI)
+  .then(() => console.log("MongoDB Connected"))
+  .catch(err => console.log(err));
 app.use(cors());
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(express.json({ limit: "50mb" }));
@@ -470,7 +472,9 @@ app.get("/api/active-lecture/:groupKey", async (req, res) => {
 });
 
 app.get("/api/class-group", getCombinedClassData);
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/", (req, res) => {
+  res.send("Backend is running");
+});
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
