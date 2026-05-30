@@ -17,10 +17,24 @@ const { getCombinedClassData } = require("./groupController");
 
 const app = express();
 const mongoURI = process.env.MONGODB_URI;
+if (!mongoURI) {
+  console.error("❌ MONGODB_URI is not set. Check your environment variables on Render.");
+  process.exit(1);
+}
 mongoose.connect(mongoURI)
   .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log(err));
-app.use(cors());
+  .catch(err => {
+    console.error("❌ MongoDB connection failed:", err.message);
+    process.exit(1);
+  });
+app.use(cors({
+  origin: [
+    "https://evalyntra-frontend.onrender.com",
+    "http://localhost:3000",
+    "http://127.0.0.1:5500"
+  ],
+  credentials: true
+}));
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.static(__dirname));
@@ -65,7 +79,6 @@ app.post("/api/login", async (req, res) => {
     if (role === "student") {
       user = await User.findOne({ usn, role: "student" });
       if (!user) return res.status(401).json({ message: "Student not found" });
-      if (user.password !== password) return res.status(401).json({ message: "Invalid credentials" });
     } else {
       const { name, email, subjectCode, password } = req.body;
       user = await User.findOne({
