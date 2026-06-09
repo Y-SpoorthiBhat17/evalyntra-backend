@@ -31,4 +31,28 @@ const getCombinedClassData = async (req, res) => {
     }
 };
 
-module.exports = { getCombinedClassData };
+const getStudentsByGroup = async (req, res) => {
+  try {
+    const { college, branch, year, section } = req.query;
+
+    const students = await User.find({
+      role: "Student",
+      college,
+      branch,
+      year,
+      section
+    }).select("name usn");
+
+    res.status(200).json(students);
+  } catch (error) {
+    res.status(500).json({
+      message: "Error fetching students",
+      error: error.message
+    });
+  }
+};
+
+module.exports = {
+  getCombinedClassData,
+  getStudentsByGroup
+}; 

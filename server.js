@@ -314,6 +314,26 @@ app.delete("/api/quizzes/:id", async (req, res) => {
   res.json({ message: "Quiz deleted" });
 });
 
+app.get("/api/students", async (req, res) => {
+  try {
+    const { college, branch, year, section } = req.query;
+
+    const students = await User.find({
+      role: "Student",
+      college,
+      branch,
+      year,
+      section
+    }).select("name usn");
+
+    res.json(students);
+  } catch (err) {
+    res.status(500).json({
+      message: "Error fetching students"
+    });
+  }
+});
+
 /* ===== COURSES ===== */
 app.get("/api/courses", async (req, res) => {
   try {
