@@ -316,10 +316,14 @@ app.delete("/api/quizzes/:id", async (req, res) => {
 
 app.get("/api/students", async (req, res) => {
   try {
-    const students = await User.find({
-      role: "Student"
-    }).select("name usn college branch year section");
-
+    const { college, branch, year, section } = req.query;
+    // filter by group if params provided; role lowercase matches schema
+    const filter = { role: "student" };
+    if (college) filter.college = college;
+    if (branch)  filter.branch  = branch;
+    if (year)    filter.year    = year;
+    if (section) filter.section = section;
+    const students = await User.find(filter).select("name usn college branch year section");
     res.json(students);
   } catch (err) {
     res.status(500).json({ message: "Error fetching students" });
