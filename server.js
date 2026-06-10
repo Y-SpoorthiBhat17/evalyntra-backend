@@ -493,6 +493,127 @@ app.get("/api/active-lecture/:groupKey", async (req, res) => {
 });
 
 app.get("/api/class-group", getCombinedClassData);
+
+/* ===== AUTO-ASSIGN ZERO FOR UNATTEMPTED EXPIRED QUIZZES ===== */
+/*
+  POST /api/quizzes/assign-zeros/:quizId
+  Called by lecturer dashboard when a quiz is expired.
+  Finds all students in the quiz's groupKey who never attempted,
+  and inserts a score:0 attempt for each of them.
+  Safe to call multiple times — skips students already assigned.
+*/
+app.post("/api/quizzes/assign-zeros/:quizId", async (req, res) => {
+  try {
+    const quiz = await Quiz.findById(req.params.quizId);
+    if (!quiz) return res.status(404).json({ message: "Quiz not found" });
+
+    // Only auto-assign if quiz is actually expired
+    if (!quiz.dueDate || new Date() <= new Date(quiz.dueDate)) {
+      return res.status(400).json({ message: "Quiz is not expired yet" });
+    }
+
+    // Get all students in this quiz's group and subject
+    // groupKey format: "college|branch|year|section"
+    const parts = quiz.groupKey.split("|");
+    const [college, branch, year, section] = parts;
+
+    const allStudents = await User.find({
+      role: "student",
+      college,
+      branch,
+      year,
+      section
+    }).select("name usn");
+
+    if (allStudents.length === 0) {
+      return res.status(200).json({ message: "No students found in this group", assigned: 0 });
+    }
+
+    // Find USNs of students who already have an attempt (including previously auto-assigned zeros)
+    const attemptedUSNs = new Set(quiz.attempts.map(a => a.studentUSN));
+
+    // Filter to only unattempted students
+    const unattempted = allStudents.filter(s => !attemptedUSNs.has(s.usn));
+
+    if (unattempted.length === 0) {
+      return res.status(200).json({ message: "All students already have attempts", assigned: 0 });
+    }
+
+    // Push zero-score attempt for each unattempted student
+    const zeroAttempts = unattempted.map(s => ({
+      studentUSN: s.usn,
+      studentName: s.name,
+      studentAnswers: {},
+      score: 0,
+      attemptedAt: new Date(quiz.dueDate), // mark as attempted at due date
+      autoAssigned: true                   // flag so frontend can show "Not Attempted"
+    }));
+
+    quiz.attempts.push(...zeroAttempts);
+    await quiz.save();
+
+    res.json({
+      message: `Assigned 0 to ${unattempted.length} unattempted student(s)`,
+      assigned: unattempted.length,
+      students: unattempted.map(s => ({ name: s.name, usn: s.usn }))
+    });
+
+  } catch (err) {
+    console.error("assign-zeros error:", err);
+    res.status(500).json({ message: "Error assigning zeros", error: err.message });
+  }
+});
+
+/* ===== GET FULL QUIZ RESULTS (attempted + unattempted) for lecturer ===== */
+/*
+  GET /api/quizzes/results/:quizId
+  Returns all attempts including auto-assigned zeros.
+  Also returns totalStudents in the group for the lecturer dashboard count.
+*/
+app.get("/api/quizzes/results/:quizId", async (req, res) => {
+  try {
+    const quiz = await Quiz.findById(req.params.quizId);
+    if (!quiz) return res.status(404).json({ message: "Quiz not found" });
+
+    const parts = quiz.groupKey.split("|");
+    const [college, branch, year, section] = parts;
+
+    const allStudents = await User.find({
+      role: "student",
+      college,
+      branch,
+      year,
+      section
+    }).select("name usn");
+
+    const totalStudents = allStudents.length;
+    const attemptedCount = quiz.attempts.filter(a => !a.autoAssigned).length;
+    const unattemptedCount = quiz.attempts.filter(a => a.autoAssigned).length;
+
+    res.json({
+      quizId: quiz._id,
+      title: quiz.title,
+      subject: quiz.subject,
+      totalMarks: quiz.totalMarks || quiz.questions.length,
+      dueDate: quiz.dueDate,
+      isExpired: quiz.dueDate ? new Date() > new Date(quiz.dueDate) : false,
+      totalStudents,
+      attemptedCount,
+      unattemptedCount,
+      attempts: quiz.attempts.map(a => ({
+        studentUSN: a.studentUSN,
+        studentName: a.studentName,
+        score: a.score,
+        attemptedAt: a.attemptedAt,
+        status: a.autoAssigned ? "Not Attempted" : "Attempted"
+      }))
+    });
+
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching results", error: err.message });
+  }
+});
+
 app.get("/", (req, res) => {
   res.send("Backend is running");
 });

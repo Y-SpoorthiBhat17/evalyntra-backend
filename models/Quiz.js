@@ -23,7 +23,8 @@ const quizSchema = new mongoose.Schema({
     studentName: String,
     studentAnswers: mongoose.Schema.Types.Mixed,
     score: Number,
-    attemptedAt: Date
+    attemptedAt: Date,
+    autoAssigned: { type: Boolean, default: false } // true = student didn't attempt, given 0
   }]
 });
 
